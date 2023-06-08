@@ -20,10 +20,19 @@ fi
 pnpm build
 cp -r dist/* "$TEMP_DIR"
 
-git checkout gh-pages
+# Checkout `gh-pages`
+git checkout --orphan gh-pages
+
+# Remove all git tracked files
+git rm -rf .
+
+# Copy over built assets
 cp -r "$TEMP_DIR/*" .
+
+# Add them and commit it
 git add .
 git commit -m "gh-pages deploy"
 git push
 
+# Return to the main branch
 git checkout main
