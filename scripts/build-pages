@@ -21,7 +21,11 @@ pnpm build
 cp -r dist/* "$TEMP_DIR"
 
 # Checkout `gh-pages`
-git checkout --orphan gh-pages
+if git show-ref --quiet refs/heads/gh-pages; then
+  git checkout --orphan gh-pages
+else
+  git checkout gh-pages
+fi
 
 # Remove all git tracked files
 git rm -rf .
