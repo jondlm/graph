@@ -27,7 +27,7 @@ git checkout --orphan gh-pages
 git rm -rf .
 
 # Copy over built assets
-cp -r "$TEMP_DIR/*" .
+cp -r "$TEMP_DIR"/* .
 
 # Add them and commit it
 git add .
