@@ -32,16 +32,13 @@ fi
 git rm -rf .
 git checkout main -- .gitignore
 
-# Remove the old built assets.
-# rm ./*.css ./*.map ./*.js ./*.html
-
 # Copy over the new assets.
 cp -r "$TEMP_DIR"/* .
 
-# # Add, commit, push.
-# git add .
-# git commit -m "gh-pages deploy"
-# git push
-# 
-# # Return to the main branch.
-# git checkout main
+# Add, commit, push.
+git add -A
+git commit -m "gh-pages deploy"
+git push
+
+# Return to the main branch.
+git checkout main
