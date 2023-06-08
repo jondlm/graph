@@ -33,7 +33,7 @@ git rm -rf .
 git checkout main -- .gitignore
 
 # Remove the old built assets.
-rm ./*.css ./*.map ./*.js ./*.html
+# rm ./*.css ./*.map ./*.js ./*.html
 
 # Copy over the new assets.
 cp -r "$TEMP_DIR"/* .
