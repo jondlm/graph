@@ -25,6 +25,7 @@ git checkout --orphan gh-pages
 
 # Remove all git tracked files
 git rm -rf .
+git checkout main -- .gitignore
 
 # Copy over built assets
 cp -r "$TEMP_DIR"/* .
