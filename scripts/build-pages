@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -euox pipefail
+
+TEMP_DIR=$(mktemp -d)
+
+# Defer cleanup
+cleanup() {
+  ls $TEMP_DIR
+  rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
+
+# Clear previous `dist`
+if [ -d dist ]; then
+  rm -rf dist
+fi
+
+# Writes new files to `dist`
+pnpm build
+cp -r dist/* "$TEMP_DIR"
+
+git checkout gh-pages
+cp -r "$TEMP_DIR/*" .
+git add .
+git commit -m "gh-pages deploy"
+git push
+
+git checkout main
