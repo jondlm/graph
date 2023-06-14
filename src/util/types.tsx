@@ -2,7 +2,8 @@ export type Id = number | string;
 
 export type Module = {
   id: Id;
-  label: string; // e.g. `react`, `@sail/ui`
+  // Defaults to `id` if undefined.
+  label?: string;
   edges?: Id[];
   // absolutePath: string;
 };

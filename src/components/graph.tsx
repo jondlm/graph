@@ -1,7 +1,8 @@
-import { createSignal, onMount, createEffect, For } from "solid-js";
+import { createSignal, onMount, createEffect, For, Show } from "solid-js";
 import { Orb } from "@memgraph/orb";
 import { parseDotGraph } from "../util/parsers/dot";
 import { debounce } from "../util/general";
+import { tarjan } from "../util/algo/tarjan";
 
 import type { Id, Module, GraphData } from "../util/types";
 
@@ -11,21 +12,37 @@ type Edge = {
   end: Id;
 };
 
+const tableauColors = [
+  "#4e79a7",
+  "#f28e2b",
+  "#e15759",
+  "#76b7b2",
+  "#59a14f",
+  "#edc948",
+  "#b07aa1",
+  "#ff9da7",
+  "#9c755f",
+  "#bab0ac",
+];
+
+const buttonClass = "bg-blue-500 hover:bg-blue-700 text-white px-2 rounded";
+
 const sampleData = {
-  nodes: [
-    { id: 1, label: "one", edges: [2] },
-    { id: 2, label: "two" },
-  ],
+  nodes: [{ id: 1, edges: [2] }, { id: 2 }],
 };
 
 const Graph = () => {
   const [filter, setFilter] = createSignal<string>("");
   const [orb, setOrb] = createSignal<Orb>();
   const [graphData, setGraphData] = createSignal<GraphData>(sampleData);
-  const [windowSize, setWindowSize] = createSignal<{ width: number; height: number }>({
+  const [windowSize, setWindowSize] = createSignal<{
+    width: number;
+    height: number;
+  }>({
     width: window.innerWidth,
     height: window.innerHeight,
   });
+  const [message, setMessage] = createSignal<string>("");
 
   const processInput = (input: string) => {
     let d: any;
@@ -121,7 +138,7 @@ const Graph = () => {
 
       return {
         id: node.id,
-        label: node.label,
+        label: node.label ?? node.id,
       };
     });
 
@@ -149,51 +166,88 @@ const Graph = () => {
     <div class="h-screen flex flex-initial">
       {/* sidebar */}
       <div class="w-2/6 overflow-auto bg-slate-50 p-2">
-        <h1 class="text-xl mb-4">Graph</h1>
-        <button
-          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          onClick={async () => {
-            const text = await navigator.clipboard.readText();
-            processInput(text);
-          }}
-        >
-          grab data from clipboard
-        </button>
-        <div
-          class="bg-white overflow-auto text-sm rounded-md border p-2 border-slate-200"
-          onDragOver={(ev) => {
-            ev.preventDefault();
-          }}
-          onDrop={(ev) => {
-            ev.preventDefault();
-            if (ev.dataTransfer != null && ev.dataTransfer.items) {
-              // Use DataTransferItemList interface to access the file(s)
-              [...ev.dataTransfer.items].forEach((item, i) => {
-                // If dropped items aren't files, reject them
-                if (item.kind === "file") {
-                  const file = item.getAsFile();
-                  if (file) {
-                    file.text().then((input) => {
-                      processInput(input);
-                      // console.log(
-                      //   `Number of nodes ${Object.keys(data.nodes).length}`,
-                      // );
-                    });
+        <h1 class="text-xl mb-3">Load Data</h1>
+        <div class="flex mb-3">
+          <button
+            class={buttonClass}
+            onClick={async () => {
+              const text = await navigator.clipboard.readText();
+              processInput(text);
+            }}
+          >
+            From clipboard
+          </button>
+          <div
+            class="bg-white rounded-md border border-dashed px-1 ml-1 border-slate-300"
+            onDragOver={(ev) => {
+              ev.preventDefault();
+            }}
+            onDrop={(ev) => {
+              ev.preventDefault();
+              if (ev.dataTransfer != null && ev.dataTransfer.items) {
+                // Use DataTransferItemList interface to access the file(s)
+                [...ev.dataTransfer.items].forEach((item, i) => {
+                  // If dropped items aren't files, reject them
+                  if (item.kind === "file") {
+                    const file = item.getAsFile();
+                    if (file) {
+                      file.text().then((input) => {
+                        processInput(input);
+                      });
+                    }
                   }
-                }
-              });
-            }
-          }}
-        >
-          Drag JSON graph file here. Example format:
-          <pre class="text-xs">
-            <code>{JSON.stringify(sampleData, null, 2)}</code>
-          </pre>
+                });
+              }
+            }}
+          >
+            Drag file here
+          </div>
         </div>
+        <h1 class="text-xl mb-3">Tools</h1>
         <div>
+          <div class="flex my-1 justify-between">
+            <button
+              class={buttonClass}
+              onClick={async () => {
+                const gd = graphData();
+                const start = Date.now();
+                const cycles = tarjan(gd);
+                const end = Date.now();
+
+                if (cycles.length > 0) {
+                  setMessage(
+                    `Cycles found in ${(end - start).toFixed(
+                      0
+                    )}ms:\n${JSON.stringify(cycles, null, 2)}`
+                  );
+
+                  return;
+                }
+
+                setMessage(`No cycles found in ${(end - start).toFixed(0)}ms.`);
+              }}
+            >
+              Detect cycles
+            </button>
+          </div>
+          {/* info box */}
+          <Show when={message()}>
+            <pre class="bg-white overflow-auto text-sm rounded-md border p-2 border-slate-300 mb-1">
+              {message}
+            </pre>
+          </Show>
+          <h1 class="text-xl mb-3 mt-3">Search</h1>
           <div class="flex justify-between">
-            <input class="p-1 w-8/12" type="text" onInput={(e) => setFilter(e.target.value)} placeholder="search" />
-            <div class="text-right text-xs self-center">click item to select</div>
+            <input
+              class="p-1 w-8/12 border border-slate-300 rounded-md"
+              type="text"
+              // @ts-expect-error -- not sure why `value` is missing
+              onInput={(e) => setFilter(e.target.value)}
+              placeholder="filter nodes"
+            />
+            <div class="text-right text-xs self-center">
+              click item to select
+            </div>
           </div>
           <ul class="list-disc list-inside text-xs">
             <For
@@ -213,7 +267,10 @@ const Graph = () => {
                     o.view.render(); // won't redraw unless you call this
                   }}
                 >
-                  <a class="font-medium text-blue-600 dark:text-blue-500 hover:underline" href="#">
+                  <a
+                    class="font-medium text-blue-600 dark:text-blue-500 hover:underline"
+                    href="#"
+                  >
                     {node.id}
                   </a>
                 </li>

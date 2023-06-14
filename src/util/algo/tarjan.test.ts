@@ -6,9 +6,9 @@ describe("tarjan", () => {
   test("finds a small cycle", () => {
     const graph = {
       nodes: [
-        { id: "a", label: "", edges: ["b"] },
-        { id: "b", label: "", edges: ["c", "a"] },
-        { id: "c", label: "", edges: [] },
+        { id: "a", edges: ["b"] },
+        { id: "b", edges: ["c", "a"] },
+        { id: "c", edges: [] },
       ],
     };
 
@@ -18,16 +18,16 @@ describe("tarjan", () => {
   test("finds all cycles", () => {
     const graph = {
       nodes: [
-        { id: "aa", label: "", edges: ["ba", "bb", "bc"] },
-        { id: "ba", label: "", edges: ["ca", "cb"] },
-        { id: "bb", label: "", edges: ["cc", "cd"] },
-        { id: "bc", label: "", edges: ["ce", "cf"] },
-        { id: "ca", label: "", edges: [] },
-        { id: "cb", label: "", edges: ["cc"] }, // cycle
-        { id: "cc", label: "", edges: ["cb"] }, // cycle
-        { id: "cd", label: "", edges: ["aa"] }, // cycle
-        { id: "ce", label: "", edges: [] },
-        { id: "cf", label: "", edges: [] },
+        { id: "aa", edges: ["ba", "bb", "bc"] },
+        { id: "ba", edges: ["ca", "cb"] },
+        { id: "bb", edges: ["cc", "cd"] },
+        { id: "bc", edges: ["ce", "cf"] },
+        { id: "ca", edges: [] },
+        { id: "cb", edges: ["cc"] }, // cycle
+        { id: "cc", edges: ["cb"] }, // cycle
+        { id: "cd", edges: ["aa"] }, // cycle
+        { id: "ce", edges: [] },
+        { id: "cf", edges: [] },
       ],
     };
 
@@ -40,16 +40,16 @@ describe("tarjan", () => {
   test("no cycle", () => {
     const graph = {
       nodes: [
-        { id: "aa", label: "", edges: ["ba", "bb", "bc"] },
-        { id: "ba", label: "", edges: ["ca", "cb"] },
-        { id: "bb", label: "", edges: ["cc", "cd"] },
-        { id: "bc", label: "", edges: ["ce", "cf"] },
-        { id: "ca", label: "", edges: [] },
-        { id: "cb", label: "", edges: [] },
-        { id: "cc", label: "", edges: [] },
-        { id: "cd", label: "", edges: [] },
-        { id: "ce", label: "", edges: [] },
-        { id: "cf", label: "", edges: [] },
+        { id: "aa", edges: ["ba", "bb", "bc"] },
+        { id: "ba", edges: ["ca", "cb"] },
+        { id: "bb", edges: ["cc", "cd"] },
+        { id: "bc", edges: ["ce", "cf"] },
+        { id: "ca", edges: [] },
+        { id: "cb", edges: [] },
+        { id: "cc", edges: [] },
+        { id: "cd", edges: [] },
+        { id: "ce", edges: [] },
+        { id: "cf", edges: [] },
       ],
     };
 
@@ -62,12 +62,10 @@ describe("tarjan", () => {
         nodes: [
           {
             id: "a",
-            label: "a",
             edges: ["b"],
           },
           {
             id: "b",
-            label: "b",
             edges: ["a"],
           },
         ],
