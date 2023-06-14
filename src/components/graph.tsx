@@ -35,6 +35,7 @@ const Graph = () => {
   const [filter, setFilter] = createSignal<string>("");
   const [orb, setOrb] = createSignal<Orb>();
   const [graphData, setGraphData] = createSignal<GraphData>(sampleData);
+  const [numEdges, setNumEdges] = createSignal<number>(1); // hard coded start value :|
   const [windowSize, setWindowSize] = createSignal<{
     width: number;
     height: number;
@@ -142,6 +143,8 @@ const Graph = () => {
       };
     });
 
+    setNumEdges(edgeId);
+
     o.data.setup({ nodes, edges });
 
     o.data.getNodeById("");
@@ -165,7 +168,7 @@ const Graph = () => {
   return (
     <div class="h-screen flex flex-initial">
       {/* sidebar */}
-      <div class="w-2/6 overflow-auto bg-slate-50 p-2">
+      <div class="w-2/6 overflow-auto bg-slate-50 p-2 border-slate-300 border-r">
         <h1 class="text-xl mb-3">Load Data</h1>
         <div class="flex mb-3">
           <button
@@ -280,8 +283,12 @@ const Graph = () => {
         </div>
       </div>
       {/* main */}
-      <div class="w-5/6">
+      <div class="w-5/6 relative">
         <div class="h-screen" ref={graphRef} />
+        <div class="absolute text-sm top-0 right-0 py-2 px-4 bg-slate-50 border-l border-b border-slate-300 rounded-bl-md">
+          <div>Nodes: {graphData().nodes.length}</div>
+          <div>Edges: {numEdges()}</div>
+        </div>
       </div>
     </div>
   );
