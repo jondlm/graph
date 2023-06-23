@@ -28,7 +28,14 @@ const tableauColors = [
 const buttonClass = "bg-blue-500 hover:bg-blue-700 text-white px-2 rounded";
 
 const sampleData = {
-  nodes: [{ id: 1, edges: [2] }, { id: 2 }],
+  nodes: [
+    { id: 1, edges: [2] },
+    { id: 2, edges: [3] },
+    { id: 3, edges: [1, 4] },
+    { id: 4, edges: [5] },
+    { id: 5, edges: [6] },
+    { id: 6, edges: [5] },
+  ],
 };
 
 const Graph = () => {
