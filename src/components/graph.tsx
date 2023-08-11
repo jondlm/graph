@@ -1,15 +1,50 @@
 import { createSignal, onMount, createEffect, For, Show } from "solid-js";
-import { Orb } from "@memgraph/orb";
+import { scaleSequential, type ScaleSequential } from "d3-scale";
+import { interpolateCool } from "d3-scale-chromatic";
+import {
+  Graph as CosmoGraph,
+  type GraphConfigInterface,
+} from "@cosmograph/cosmos";
+// => // fix syntax highlighting
 import { parseDotGraph } from "../util/parsers/dot";
 import { debounce } from "../util/general";
 import { tarjan } from "../util/algo/tarjan";
 
 import type { Id, Module, GraphData } from "../util/types";
 
+// Little hack to "fix" hmr with tailwind styles
+// @ts-expect-error
+if (module.hot) {
+  // @ts-expect-error
+  module.hot.accept(() => {
+    document.location.reload();
+  });
+}
+
+type Node = {
+  id: string;
+  edgesIn: number;
+  edgesOut: number;
+};
+
 type Edge = {
   id: Id;
-  start: Id;
-  end: Id;
+  source: string;
+  target: string;
+};
+
+const slate = {
+  50: "#f8fafc",
+  100: "#f1f5f9",
+  200: "#e2e8f0",
+  300: "#cbd5e1",
+  400: "#94a3b8",
+  500: "#64748b",
+  600: "#475569",
+  700: "#334155",
+  800: "#1e293b",
+  900: "#0f172a",
+  950: "#020617",
 };
 
 const tableauColors = [
@@ -25,16 +60,36 @@ const tableauColors = [
   "#bab0ac",
 ];
 
-const buttonClass = "bg-blue-500 hover:bg-blue-700 text-white px-2 rounded";
+const MAX_LIST_LENGTH = 25;
+
+const Link = (props: any) => (
+  <a class="font-medium text-slate-400 underline" href="#">
+    {props.children}
+  </a>
+);
+
+const buttonClass = "bg-indigo-500 hover:bg-indigo-700 text-white px-2 rounded";
+
+// I tried putting this in a `createSignal` but it was a hassle to get TS to be
+// happy so I'm putting it in module scope here.
+const nodeScale = scaleSequential(interpolateCool);
 
 const sampleData = {
-  nodes: [{ id: 1, edges: [2] }, { id: 2 }],
+  nodes: [
+    { id: 1, edges: [2] },
+    { id: 2, edges: [3] },
+    { id: 3, edges: [1, 4] },
+    { id: 4, edges: [5] },
+    { id: 5, edges: [6] },
+    { id: 6, edges: [5] },
+  ],
 };
 
 const Graph = () => {
   const [filter, setFilter] = createSignal<string>("");
-  const [orb, setOrb] = createSignal<Orb>();
+  const [cosmoGraph, setCosmoGraph] = createSignal<CosmoGraph<Node, Edge>>();
   const [graphData, setGraphData] = createSignal<GraphData>(sampleData);
+  const [filteredGraphData, setFilteredGraphData] = createSignal<Module[]>([]);
   const [windowSize, setWindowSize] = createSignal<{
     width: number;
     height: number;
@@ -43,6 +98,8 @@ const Graph = () => {
     height: window.innerHeight,
   });
   const [message, setMessage] = createSignal<string>("");
+  const [domain, setDomain] = createSignal<[number, number]>([1, 0]);
+  const [selectedNodeId, setSelectedNodeId] = createSignal<string>();
 
   const processInput = (input: string) => {
     let d: any;
@@ -55,11 +112,11 @@ const Graph = () => {
     setGraphData(d);
   };
 
-  let graphRef: HTMLDivElement | undefined = undefined;
+  let canvasRef: HTMLCanvasElement | undefined = undefined;
 
   onMount(() => {
     // make TS happy
-    if (graphRef == null) {
+    if (canvasRef == null) {
       return;
     }
 
@@ -73,100 +130,126 @@ const Graph = () => {
       })
     );
 
-    const o = new Orb(graphRef);
-    o.data.setDefaultStyle({
-      getNodeStyle(node) {
-        const basicStyle = {
-          borderColor: "#d5dbe1",
-          borderWidth: 0.4,
-          color: "#f6f8fa",
-          colorHover: "#d5dbe1",
-          colorSelected: "#ddfffe",
-          fontSize: 3,
-          label: node.data.label,
-          size: 6,
-        };
+    let g: CosmoGraph<Node, Edge>;
 
-        // if (node.data.label === "Node A") {
-        //   return {
-        //     ...basicStyle,
-        //     size: 10,
-        //     color: "#00FF2B",
-        //   };
-        // }
-
-        return {
-          ...basicStyle,
-        };
+    const config: GraphConfigInterface<Node, Edge> = {
+      nodeGreyoutOpacity: 0.2,
+      backgroundColor: slate["900"],
+      linkArrows: false,
+      linkColor: (link) => slate["100"],
+      linkWidth: 0.1,
+      scaleNodesOnZoom: true,
+      showFPSMonitor: true,
+      nodeColor: (node) => nodeScale(node.edgesIn),
+      nodeSizeScale: 0.6,
+      events: {
+        onClick: (node) => {
+          // This handler introduces a closure that'll hold on to `g`. Not sure
+          // if that'll cause problems down the road.
+          if (node == null) {
+            g.unselectNodes();
+          } else {
+            setSelectedNodeId();
+            g.selectNodeById(node.id);
+          }
+        },
       },
-      getEdgeStyle(edge) {
-        return {
-          color: "#999999",
-          colorHover: "#1d1d1d",
-          colorSelected: "#1d1d1d",
-          fontSize: 3,
-          width: 0.3,
-          widthHover: 0.5,
-          widthSelected: 0.5,
-          label: edge.data.label,
-        };
-      },
-    });
+    };
 
-    setOrb(o);
+    g = new CosmoGraph(canvasRef, config);
+    // @ts-expect-error
+    window.g = g;
+    setCosmoGraph(g);
   }); // end onMount
 
   createEffect(() => {
     // reactive deps
-    const o = orb();
+    const g = cosmoGraph();
     const gd = graphData();
 
     // make TS happy
-    if (graphRef == null || o == null) {
+    if (canvasRef == null || g == null) {
       return;
     }
 
     let edgeId = 0;
+    let largestEdgesIn = 0;
+
     const edges: Edge[] = [];
-    const nodes = gd.nodes.map((node) => {
+    const nodes: Node[] = gd.nodes.map((node) => {
+      let edgesIn = 0;
+
       if (node.edges != null) {
+        edgesIn = node.edges.length;
+
+        if (edgesIn > largestEdgesIn) {
+          largestEdgesIn = edgesIn;
+        }
+
         node.edges.forEach((endId) => {
-          edges.push({ id: edgeId, start: node.id, end: endId });
+          edges.push({
+            id: edgeId,
+            source: node.id.toString(),
+            target: endId.toString(),
+          });
           edgeId += 1;
         });
       }
 
       return {
-        id: node.id,
-        label: node.label ?? node.id,
+        id: node.id.toString(),
+        edgesIn,
       };
     });
 
-    o.data.setup({ nodes, edges });
+    // Adjust the scale domain based on the observed data
+    nodeScale.domain([0, largestEdgesIn]);
 
-    o.data.getNodeById("");
-    o.view.render(() => {
-      o.view.recenter();
-    });
+    g.setData(nodes, edges);
+    // TODO: why do I need a timeout here?
+    setTimeout(function () {
+      g.fitView();
+    }, 200);
   }); // end createEffect
 
   createEffect(() => {
     const size = windowSize();
-    const o = orb();
+    const g = cosmoGraph();
 
     // make TS happy
-    if (o == null) {
+    if (g == null) {
       return;
     }
 
-    o.view.recenter();
+    g.fitView();
   }); // end createEffect
+
+  createEffect(() => {
+    // reactive deps
+    const gd = graphData();
+
+    setFilteredGraphData(
+      gd.nodes
+        .filter((n) => String(n.id).includes(filter()))
+        .sort((a, b) => (a.id > b.id ? 1 : -1))
+    );
+  });
 
   return (
     <div class="h-screen flex flex-initial">
       {/* sidebar */}
-      <div class="w-2/6 overflow-auto bg-slate-50 p-2">
-        <h1 class="text-xl mb-3">Load Data</h1>
+      <div class="w-2/6 overflow-auto bg-slate-800 text-white px-2">
+        {/* top bar */}
+        {/*
+        <ul class="p-2 flex my-2 items-baseline justify-evenly">
+          <li class="">one</li>
+          <li class="">two</li>
+          <li class="text-sm">
+            <Link>load data</Link>
+          </li>
+        </ul>
+        */}
+        <h1 class="text-xl my-3">Load Data</h1>
         <div class="flex mb-3">
           <button
             class={buttonClass}
@@ -178,7 +261,7 @@ const Graph = () => {
             From clipboard
           </button>
           <div
-            class="bg-white rounded-md border border-dashed px-1 ml-1 border-slate-300"
+            class="bg-slate-700 rounded-md border border-dashed px-1 ml-1 border-slate-500"
             onDragOver={(ev) => {
               ev.preventDefault();
             }}
@@ -232,56 +315,51 @@ const Graph = () => {
           </div>
           {/* info box */}
           <Show when={message()}>
-            <pre class="bg-white overflow-auto text-sm rounded-md border p-2 border-slate-300 mb-1">
+            <pre class="bg-slate-700 overflow-auto text-sm rounded-md border p-2 border-slate-600 mb-1">
               {message}
             </pre>
           </Show>
           <h1 class="text-xl mb-3 mt-3">Search</h1>
-          <div class="flex justify-between">
+          <div class="flex justify-between mb-2">
             <input
-              class="p-1 w-8/12 border border-slate-300 rounded-md"
+              class="p-1 w-8/12 border bg-slate-700 border-slate-600 rounded-md"
               type="text"
               // @ts-expect-error -- not sure why `value` is missing
               onInput={(e) => setFilter(e.target.value)}
               placeholder="filter nodes"
             />
             <div class="text-right text-xs self-center">
-              click item to select
+              click item(s) to select
             </div>
           </div>
-          <ul class="list-disc list-inside text-xs">
-            <For
-              each={graphData()
-                .nodes.filter((n) => String(n.id).includes(filter()))
-                .sort((a, b) => (a.id > b.id ? 1 : -1))}
-            >
+          <ul class="border border-slate-600 divide-y divide-slate-600 rounded-md text-xs">
+            <For each={filteredGraphData().slice(0, MAX_LIST_LENGTH)}>
               {(node) => (
                 <li
+                  class="py-1 px-2 cursor-pointer hover:underline"
                   onClick={() => {
-                    const o = orb();
+                    const o = cosmoGraph();
                     if (o === undefined) return;
 
-                    const n = o.data.getNodeById(node.id);
-                    if (n === undefined) return;
-                    n.state = 1; // "selected", doesnt seem to be accessible via api
-                    o.view.render(); // won't redraw unless you call this
+                    o.selectNodeById(node.id.toString());
+                    console.log("TODO: handle select");
                   }}
                 >
-                  <a
-                    class="font-medium text-blue-600 dark:text-blue-500 hover:underline"
-                    href="#"
-                  >
-                    {node.id}
-                  </a>
+                  <a href="#">{node.id}</a>
                 </li>
               )}
             </For>
           </ul>
+          <Show when={filteredGraphData().length > MAX_LIST_LENGTH}>
+            <div class="mt-2 text-xs text-slate-500 text-right">
+              {filteredGraphData().length - MAX_LIST_LENGTH} results hidden
+            </div>
+          </Show>
         </div>
       </div>
       {/* main */}
-      <div class="w-5/6">
-        <div class="h-screen" ref={graphRef} />
+      <div class="w-5/6 bg-slate-800">
+        <canvas class="h-screen" ref={canvasRef} />
       </div>
     </div>
   );
