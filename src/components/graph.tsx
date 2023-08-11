@@ -63,12 +63,13 @@ const tableauColors = [
 const MAX_LIST_LENGTH = 25;
 
 const Link = (props: any) => (
-  <a class="font-medium text-slate-400 underline" href="#">
+  <a class="font-medium text-zinc-400 underline" href="#">
     {props.children}
   </a>
 );
 
-const buttonClass = "bg-indigo-500 hover:bg-indigo-700 text-white px-2 rounded";
+const buttonClass =
+  "bg-indigo-500 hover:bg-indigo-700 text-zinc-200 px-2 rounded";
 
 // I tried putting this in a `createSignal` but it was a hassle to get TS to be
 // happy so I'm putting it in module scope here.
@@ -90,6 +91,7 @@ const Graph = () => {
   const [cosmoGraph, setCosmoGraph] = createSignal<CosmoGraph<Node, Edge>>();
   const [graphData, setGraphData] = createSignal<GraphData>(sampleData);
   const [filteredGraphData, setFilteredGraphData] = createSignal<Module[]>([]);
+  const [numEdges, setNumEdges] = createSignal<number>(1); // hard coded start value :|
   const [windowSize, setWindowSize] = createSignal<{
     width: number;
     height: number;
@@ -199,11 +201,13 @@ const Graph = () => {
       return {
         id: node.id.toString(),
         edgesIn,
+        edgesOut: 0, // TODO
       };
     });
 
     // Adjust the scale domain based on the observed data
     nodeScale.domain([0, largestEdgesIn]);
+    setNumEdges(edgeId);
 
     g.setData(nodes, edges);
     // TODO: why do I need a timeout here?
@@ -238,7 +242,7 @@ const Graph = () => {
   return (
     <div class="h-screen flex flex-initial">
       {/* sidebar */}
-      <div class="w-2/6 overflow-auto bg-slate-800 text-white px-2">
+      <div class="w-2/6 overflow-auto bg-slate-800 text-zinc-200 px-2">
         {/* top bar */}
         {/*
         <ul class="p-2 flex my-2 items-baseline justify-evenly">
@@ -351,15 +355,19 @@ const Graph = () => {
             </For>
           </ul>
           <Show when={filteredGraphData().length > MAX_LIST_LENGTH}>
-            <div class="mt-2 text-xs text-slate-500 text-right">
+            <div class="mt-2 text-xs text-zinc-500 text-right">
               {filteredGraphData().length - MAX_LIST_LENGTH} results hidden
             </div>
           </Show>
         </div>
       </div>
       {/* main */}
-      <div class="w-5/6 bg-slate-800">
+      <div class="w-5/6 bg-slate-800 relative">
         <canvas class="h-screen" ref={canvasRef} />
+        <div class="absolute text-sm text-zinc-200 bottom-0 right-0 py-2 px-4 bg-slate-800 border-t border-l border-slate-600 rounded-tl-md">
+          <div>Nodes: {graphData().nodes.length}</div>
+          <div>Edges: {numEdges()}</div>
+        </div>
       </div>
     </div>
   );
