@@ -1,4 +1,12 @@
-import { createSignal, onMount, createEffect, For, Show } from "solid-js";
+import {
+  createSignal,
+  onMount,
+  createEffect,
+  For,
+  Show,
+  Switch,
+  Match,
+} from "solid-js";
 import { scaleSequential, type ScaleSequential } from "d3-scale";
 import { interpolateCool } from "d3-scale-chromatic";
 import {
@@ -9,8 +17,9 @@ import {
 import { parseDotGraph } from "../util/parsers/dot";
 import { debounce } from "../util/general";
 import { tarjan } from "../util/algo/tarjan";
+import List from "./list.js";
 
-import type { Id, Module, GraphData } from "../util/types";
+import type { Module, GraphData } from "../util/types";
 
 // Little hack to "fix" hmr with tailwind styles
 // @ts-expect-error
@@ -28,7 +37,7 @@ type Node = {
 };
 
 type Edge = {
-  id: Id;
+  id: string;
   source: string;
   target: string;
 };
@@ -47,19 +56,6 @@ const slate = {
   950: "#020617",
 };
 
-const tableauColors = [
-  "#4e79a7",
-  "#f28e2b",
-  "#e15759",
-  "#76b7b2",
-  "#59a14f",
-  "#edc948",
-  "#b07aa1",
-  "#ff9da7",
-  "#9c755f",
-  "#bab0ac",
-];
-
 const MAX_LIST_LENGTH = 25;
 
 const Link = (props: any) => (
@@ -75,16 +71,17 @@ const buttonClass =
 // happy so I'm putting it in module scope here.
 const nodeScale = scaleSequential(interpolateCool);
 
-const sampleData = {
-  nodes: [
-    { id: 1, edges: [2] },
-    { id: 2, edges: [3] },
-    { id: 3, edges: [1, 4] },
-    { id: 4, edges: [5] },
-    { id: 5, edges: [6] },
-    { id: 6, edges: [5] },
-  ],
-};
+const rawSampleData = `{
+  "nodes": [
+    { "id": "1", "edges": ["2"]      },
+    { "id": "2", "edges": ["3"]      },
+    { "id": "3", "edges": ["1", "4"] },
+    { "id": "4", "edges": ["5"]      },
+    { "id": "5", "edges": ["6"]      },
+    { "id": "6", "edges": ["5"]      }
+  ]
+}`;
+const sampleData = JSON.parse(rawSampleData);
 
 const Graph = () => {
   const [filter, setFilter] = createSignal<string>("");
@@ -102,6 +99,9 @@ const Graph = () => {
   const [message, setMessage] = createSignal<string>("");
   const [domain, setDomain] = createSignal<[number, number]>([1, 0]);
   const [selectedNodeId, setSelectedNodeId] = createSignal<string>();
+  const [tab, setTab] = createSignal<"load" | "algo" | "node" | "search">(
+    "load"
+  );
 
   const processInput = (input: string) => {
     let d: any;
@@ -149,9 +149,11 @@ const Graph = () => {
           // This handler introduces a closure that'll hold on to `g`. Not sure
           // if that'll cause problems down the road.
           if (node == null) {
+            setSelectedNodeId();
             g.unselectNodes();
           } else {
-            setSelectedNodeId();
+            setTab("node");
+            setSelectedNodeId(node.id);
             g.selectNodeById(node.id);
           }
         },
@@ -190,16 +192,16 @@ const Graph = () => {
 
         node.edges.forEach((endId) => {
           edges.push({
-            id: edgeId,
-            source: node.id.toString(),
-            target: endId.toString(),
+            id: edgeId.toString(),
+            source: node.id,
+            target: endId,
           });
           edgeId += 1;
         });
       }
 
       return {
-        id: node.id.toString(),
+        id: node.id,
         edgesIn,
         edgesOut: 0, // TODO
       };
@@ -244,122 +246,193 @@ const Graph = () => {
       {/* sidebar */}
       <div class="w-2/6 overflow-auto bg-slate-800 text-zinc-200 px-2">
         {/* top bar */}
-        {/*
-        <ul class="p-2 flex my-2 items-baseline justify-evenly">
-          <li class="">one</li>
-          <li class="">two</li>
-          <li class="text-sm">
-            <Link>load data</Link>
+        <ul class="p-2 flex mt-1 mb-2 items-baseline justify-evenly text-sm border-b border-slate-600">
+          <li
+            class="cursor-pointer"
+            onClick={() => setTab("load")}
+            classList={{ underline: tab() === "load" }}
+          >
+            load data
+          </li>
+          <li
+            class="cursor-pointer"
+            onClick={() => setTab("algo")}
+            classList={{ underline: tab() === "algo" }}
+          >
+            algorithms
+          </li>
+          <li
+            class="cursor-pointer"
+            onClick={() => setTab("node")}
+            classList={{ underline: tab() === "node" }}
+          >
+            node
+          </li>
+          <li
+            class="cursor-pointer"
+            onClick={() => setTab("search")}
+            classList={{ underline: tab() === "search" }}
+          >
+            search
           </li>
         </ul>
-        */}
-        <h1 class="text-xl my-3">Load Data</h1>
-        <div class="flex mb-3">
-          <button
-            class={buttonClass}
-            onClick={async () => {
-              const text = await navigator.clipboard.readText();
-              processInput(text);
-            }}
-          >
-            From clipboard
-          </button>
-          <div
-            class="bg-slate-700 rounded-md border border-dashed px-1 ml-1 border-slate-500"
-            onDragOver={(ev) => {
-              ev.preventDefault();
-            }}
-            onDrop={(ev) => {
-              ev.preventDefault();
-              if (ev.dataTransfer != null && ev.dataTransfer.items) {
-                // Use DataTransferItemList interface to access the file(s)
-                [...ev.dataTransfer.items].forEach((item, i) => {
-                  // If dropped items aren't files, reject them
-                  if (item.kind === "file") {
-                    const file = item.getAsFile();
-                    if (file) {
-                      file.text().then((input) => {
-                        processInput(input);
-                      });
-                    }
+        <Switch>
+          <Match when={tab() === "load"}>
+            <div class="flex mb-2">
+              <button
+                class={buttonClass}
+                onClick={async () => {
+                  const text = await navigator.clipboard.readText();
+                  processInput(text);
+                  setTab("search");
+                }}
+              >
+                From clipboard
+              </button>
+              <div
+                class="bg-slate-700 rounded border border-dashed px-1 ml-1 border-slate-500 text-center grow"
+                onDragOver={(ev) => {
+                  ev.preventDefault();
+                }}
+                onDrop={(ev) => {
+                  ev.preventDefault();
+                  if (ev.dataTransfer != null && ev.dataTransfer.items) {
+                    // Use DataTransferItemList interface to access the file(s)
+                    [...ev.dataTransfer.items].forEach((item, i) => {
+                      // If dropped items aren't files, reject them
+                      if (item.kind === "file") {
+                        const file = item.getAsFile();
+                        if (file) {
+                          file.text().then((input) => {
+                            processInput(input);
+                          });
+                        }
+                      }
+                    });
                   }
-                });
-              }
-            }}
-          >
-            Drag file here
-          </div>
-        </div>
-        <h1 class="text-xl mb-3">Tools</h1>
-        <div>
-          <div class="flex my-1 justify-between">
-            <button
-              class={buttonClass}
-              onClick={async () => {
-                const gd = graphData();
-                const start = Date.now();
-                const cycles = tarjan(gd);
-                const end = Date.now();
-
-                if (cycles.length > 0) {
-                  setMessage(
-                    `Cycles found in ${(end - start).toFixed(
-                      0
-                    )}ms:\n${JSON.stringify(cycles, null, 2)}`
-                  );
-
-                  return;
-                }
-
-                setMessage(`No cycles found in ${(end - start).toFixed(0)}ms.`);
-              }}
-            >
-              Detect cycles
-            </button>
-          </div>
-          {/* info box */}
-          <Show when={message()}>
-            <pre class="bg-slate-700 overflow-auto text-sm rounded-md border p-2 border-slate-600 mb-1">
-              {message}
-            </pre>
-          </Show>
-          <h1 class="text-xl mb-3 mt-3">Search</h1>
-          <div class="flex justify-between mb-2">
-            <input
-              class="p-1 w-8/12 border bg-slate-700 border-slate-600 rounded-md"
-              type="text"
-              // @ts-expect-error -- not sure why `value` is missing
-              onInput={(e) => setFilter(e.target.value)}
-              placeholder="filter nodes"
-            />
-            <div class="text-right text-xs self-center">
-              click item(s) to select
+                }}
+              >
+                Drag file here
+              </div>
             </div>
-          </div>
-          <ul class="border border-slate-600 divide-y divide-slate-600 rounded-md text-xs">
-            <For each={filteredGraphData().slice(0, MAX_LIST_LENGTH)}>
-              {(node) => (
-                <li
-                  class="py-1 px-2 cursor-pointer hover:underline"
-                  onClick={() => {
-                    const o = cosmoGraph();
-                    if (o === undefined) return;
+            <p>Sample data:</p>
+            <pre class="bg-slate-700 rounded text-sm p-2">{rawSampleData}</pre>
+          </Match>
+          <Match when={tab() === "algo"}>
+            <div>
+              <div class="flex my-1 justify-between">
+                <button
+                  class={buttonClass}
+                  onClick={async () => {
+                    const gd = graphData();
+                    const start = Date.now();
+                    const cycles = tarjan(gd);
+                    const end = Date.now();
 
-                    o.selectNodeById(node.id.toString());
-                    console.log("TODO: handle select");
+                    if (cycles.length > 0) {
+                      setMessage(
+                        `Cycles found in ${(end - start).toFixed(
+                          0
+                        )}ms:\n${JSON.stringify(cycles, null, 2)}`
+                      );
+
+                      return;
+                    }
+
+                    setMessage(
+                      `No cycles found in ${(end - start).toFixed(0)}ms.`
+                    );
                   }}
                 >
-                  <a href="#">{node.id}</a>
-                </li>
-              )}
-            </For>
-          </ul>
-          <Show when={filteredGraphData().length > MAX_LIST_LENGTH}>
-            <div class="mt-2 text-xs text-zinc-500 text-right">
-              {filteredGraphData().length - MAX_LIST_LENGTH} results hidden
+                  Detect cycles
+                </button>
+              </div>
+              {/* info box */}
+              <Show when={message()}>
+                <pre class="bg-slate-700 overflow-auto text-sm rounded border p-2 border-slate-600 mb-1">
+                  {message}
+                </pre>
+              </Show>
             </div>
-          </Show>
-        </div>
+          </Match>
+          <Match when={tab() === "node"}>
+            <Show
+              when={selectedNodeId() != null}
+              fallback={"No selected node."}
+            >
+              <ul>
+                <li>Id: {selectedNodeId()}</li>
+                <li>
+                  Outgoing edges:{" "}
+                  {
+                    graphData().nodes.filter(
+                      (n) => n.id === selectedNodeId()
+                    )[0]?.edges?.length
+                  }
+                </li>
+                <li>
+                  {/* TODO: this is computationally expensive since
+                      we have to iterate through every single edge */}
+                  Incoming edges:{" "}
+                  <List
+                    data={graphData().nodes}
+                    maxLength={25}
+                    onClick={(n) => console.log("TODO", n.id)}
+                  />
+                  {graphData().nodes.reduce((acc, n) => {
+                    n?.edges?.forEach((e) => {
+                      if (e === selectedNodeId()) {
+                        acc++;
+                      }
+                    });
+                    return acc;
+                  }, 0)}
+                </li>
+              </ul>
+            </Show>
+          </Match>
+          <Match when={tab() === "search"}>
+            <div>
+              <div class="flex justify-between mb-2">
+                <input
+                  class="p-1 w-8/12 border bg-slate-700 border-slate-600 rounded"
+                  type="text"
+                  value={filter()}
+                  // @ts-expect-error -- not sure why `value` is missing
+                  onInput={(e) => setFilter(e.target.value)}
+                  placeholder="filter nodes"
+                />
+                <div class="text-right text-xs self-center">
+                  click item(s) to select
+                </div>
+              </div>
+              <ul class="border border-slate-600 divide-y divide-slate-600 rounded text-xs">
+                <For each={filteredGraphData().slice(0, MAX_LIST_LENGTH)}>
+                  {(node) => (
+                    <li
+                      class="py-1 px-2 cursor-pointer hover:underline"
+                      onClick={() => {
+                        const o = cosmoGraph();
+                        if (o === undefined) return;
+
+                        setTab("node");
+                        setSelectedNodeId(node.id);
+                        o.selectNodeById(node.id);
+                      }}
+                    >
+                      <a href="#">{node.id}</a>
+                    </li>
+                  )}
+                </For>
+              </ul>
+              <Show when={filteredGraphData().length > MAX_LIST_LENGTH}>
+                <div class="mt-2 text-xs text-zinc-500 text-right">
+                  {filteredGraphData().length - MAX_LIST_LENGTH} results hidden
+                </div>
+              </Show>
+            </div>
+          </Match>
+        </Switch>
       </div>
       {/* main */}
       <div class="w-5/6 bg-slate-800 relative">

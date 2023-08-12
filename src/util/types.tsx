@@ -1,11 +1,8 @@
-export type Id = number | string;
-
 export type Module = {
-  id: Id;
+  id: string;
   // Defaults to `id` if undefined.
   label?: string;
-  edges?: Id[];
-  // absolutePath: string;
+  edges?: string[];
 };
 
 export type GraphData = {
