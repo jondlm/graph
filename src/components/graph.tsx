@@ -103,6 +103,46 @@ const Graph = () => {
     "load"
   );
 
+  // This is computationally expensive but I think solid.js will insulate us
+  // fairly well. It should only recompute this if the selected node changes.
+  const incomingEdges = () => {
+    console.log("calculating incoming edges");
+    const sn = selectedNodeId();
+
+    return graphData().nodes.reduce<{ id: string }[]>((acc, n) => {
+      n?.edges?.forEach((e) => {
+        if (e === sn) {
+          acc.push({ id: n.id });
+        }
+      });
+      return acc;
+    }, []);
+  };
+
+  // This is computationally expensive but I think solid.js will insulate us
+  // fairly well. It should only recompute this if the selected node changes.
+  const outgoingEdges = () => {
+    console.log("calculating outgoing edges");
+    const sn = selectedNodeId();
+
+    return graphData()
+      .nodes.filter((n) => n.id === sn)
+      .flatMap((n) => n.edges?.map((e) => ({ id: e })));
+  };
+
+  const selectNode = (id: string, zoom: boolean) => {
+    const cg = cosmoGraph();
+
+    if (cg == null) return;
+
+    setSelectedNodeId(id);
+    cg.selectNodeById(id);
+
+    if (zoom) {
+      cg.zoomToNodeById(id, 700, 8);
+    }
+  };
+
   const processInput = (input: string) => {
     let d: any;
 
@@ -137,9 +177,8 @@ const Graph = () => {
     const config: GraphConfigInterface<Node, Edge> = {
       nodeGreyoutOpacity: 0.2,
       backgroundColor: slate["900"],
-      linkArrows: false,
+      linkArrows: true,
       linkColor: (link) => slate["100"],
-      linkWidth: 0.1,
       scaleNodesOnZoom: true,
       showFPSMonitor: true,
       nodeColor: (node) => nodeScale(node.edgesIn),
@@ -153,8 +192,7 @@ const Graph = () => {
             g.unselectNodes();
           } else {
             setTab("node");
-            setSelectedNodeId(node.id);
-            g.selectNodeById(node.id);
+            selectNode(node.id, false);
           }
         },
       },
@@ -363,30 +401,22 @@ const Graph = () => {
               <ul>
                 <li>Id: {selectedNodeId()}</li>
                 <li>
-                  Outgoing edges:{" "}
-                  {
-                    graphData().nodes.filter(
-                      (n) => n.id === selectedNodeId()
-                    )[0]?.edges?.length
-                  }
+                  Outgoing edges: {outgoingEdges().length}
+                  <List
+                    data={outgoingEdges()}
+                    maxLength={25}
+                    onClick={(n) => selectNode(n.id, true)}
+                  />
                 </li>
                 <li>
                   {/* TODO: this is computationally expensive since
                       we have to iterate through every single edge */}
-                  Incoming edges:{" "}
+                  Incoming edges: {incomingEdges().length}
                   <List
-                    data={graphData().nodes}
+                    data={incomingEdges()}
                     maxLength={25}
-                    onClick={(n) => console.log("TODO", n.id)}
+                    onClick={(n) => selectNode(n.id, true)}
                   />
-                  {graphData().nodes.reduce((acc, n) => {
-                    n?.edges?.forEach((e) => {
-                      if (e === selectedNodeId()) {
-                        acc++;
-                      }
-                    });
-                    return acc;
-                  }, 0)}
                 </li>
               </ul>
             </Show>
@@ -412,12 +442,11 @@ const Graph = () => {
                     <li
                       class="py-1 px-2 cursor-pointer hover:underline"
                       onClick={() => {
-                        const o = cosmoGraph();
-                        if (o === undefined) return;
+                        const cg = cosmoGraph();
+                        if (cg === undefined) return;
 
                         setTab("node");
-                        setSelectedNodeId(node.id);
-                        o.selectNodeById(node.id);
+                        selectNode(node.id, true);
                       }}
                     >
                       <a href="#">{node.id}</a>
@@ -437,9 +466,9 @@ const Graph = () => {
       {/* main */}
       <div class="w-5/6 bg-slate-800 relative">
         <canvas class="h-screen" ref={canvasRef} />
-        <div class="absolute text-sm text-zinc-200 bottom-0 right-0 py-2 px-4 bg-slate-800 border-t border-l border-slate-600 rounded-tl-md">
-          <div>Nodes: {graphData().nodes.length}</div>
-          <div>Edges: {numEdges()}</div>
+        <div class="absolute text-sm text-zinc-200 bottom-0 right-0 py-1 px-3 bg-slate-800 border-t border-l border-slate-600 rounded-tl-md">
+          <span class="mr-3">Nodes: {graphData().nodes.length}</span>
+          <span>Edges: {numEdges()}</span>
         </div>
       </div>
     </div>
