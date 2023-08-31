@@ -3,6 +3,11 @@
 # `x` prints every command the script runs.
 set -euox pipefail
 
+if ! git diff; then
+  printf "Please clean up your git state as this script needs to checkout the gh-pages branch.\n"
+  exit 1
+fi
+
 TEMP_DIR=$(mktemp -d)
 
 # Defer cleanup.
