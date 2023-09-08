@@ -1,5 +1,6 @@
 import {
   createSignal,
+  createMemo,
   onMount,
   createEffect,
   For,
@@ -7,21 +8,21 @@ import {
   Switch,
   Match,
 } from "solid-js";
-import { scaleSequential, type ScaleSequential } from "d3-scale";
+import { scaleSequential } from "d3-scale";
+import type { ScaleSequential } from "d3-scale";
 import { interpolateCool } from "d3-scale-chromatic";
-import {
-  Graph as CosmoGraph,
-  type GraphConfigInterface,
-} from "@cosmograph/cosmos";
-// => // fix syntax highlighting
+import { Graph as CosmoGraph } from "@cosmograph/cosmos";
+import type { GraphConfigInterface } from "@cosmograph/cosmos";
 import { parseDotGraph } from "../util/parsers/dot";
 import { debounce } from "../util/general";
 import { tarjan } from "../util/algo/tarjan";
+import { pageRank } from "../util/algo/page-rank";
 import List from "./list.js";
 
 import type { Module, GraphData } from "../util/types";
 
-// Little hack to "fix" hmr with tailwind styles
+// Little hack to "fix" hmr with tailwind styles. This doesn work with
+// sub-modules :(
 // @ts-expect-error
 if (module.hot) {
   // @ts-expect-error
@@ -32,8 +33,9 @@ if (module.hot) {
 
 type Node = {
   id: string;
-  edgesIn: number;
-  edgesOut: number;
+
+  // A number between 0 and 1 that colors the node.
+  colorScaleValue?: number;
 };
 
 type Edge = {
@@ -77,8 +79,7 @@ const rawSampleData = `{
     { "id": "2", "edges": ["3"]      },
     { "id": "3", "edges": ["1", "4"] },
     { "id": "4", "edges": ["5"]      },
-    { "id": "5", "edges": ["6"]      },
-    { "id": "6", "edges": ["5"]      }
+    { "id": "5"                      }
   ]
 }`;
 const sampleData = JSON.parse(rawSampleData);
@@ -105,8 +106,7 @@ const Graph = () => {
 
   // This is computationally expensive but I think solid.js will insulate us
   // fairly well. It should only recompute this if the selected node changes.
-  const incomingEdges = () => {
-    console.log("calculating incoming edges");
+  const incomingEdges = createMemo(() => {
     const sn = selectedNodeId();
 
     return graphData().nodes.reduce<{ id: string }[]>((acc, n) => {
@@ -117,18 +117,17 @@ const Graph = () => {
       });
       return acc;
     }, []);
-  };
+  });
 
   // This is computationally expensive but I think solid.js will insulate us
   // fairly well. It should only recompute this if the selected node changes.
-  const outgoingEdges = () => {
-    console.log("calculating outgoing edges");
+  const outgoingEdges = createMemo(() => {
     const sn = selectedNodeId();
 
     return graphData()
-      .nodes.filter((n) => n.id === sn)
-      .flatMap((n) => n.edges?.map((e) => ({ id: e })));
-  };
+      .nodes.filter((n) => n.id === sn && n.edges != null)
+      .flatMap((n) => n.edges!.map((e) => ({ id: e })));
+  });
 
   const selectNode = (id: string, zoom: boolean) => {
     const cg = cosmoGraph();
@@ -181,7 +180,10 @@ const Graph = () => {
       linkColor: (link) => slate["100"],
       scaleNodesOnZoom: true,
       showFPSMonitor: true,
-      nodeColor: (node) => nodeScale(node.edgesIn),
+      nodeColor: (node) =>
+        node.colorScaleValue != null
+          ? nodeScale(node.colorScaleValue)
+          : nodeScale(0.5),
       nodeSizeScale: 0.6,
       events: {
         onClick: (node) => {
@@ -202,10 +204,10 @@ const Graph = () => {
     // @ts-expect-error
     window.g = g;
     setCosmoGraph(g);
-  }); // end onMount
+  });
 
   createEffect(() => {
-    // reactive deps
+    // 🔁 reactive deps
     const g = cosmoGraph();
     const gd = graphData();
 
@@ -215,19 +217,10 @@ const Graph = () => {
     }
 
     let edgeId = 0;
-    let largestEdgesIn = 0;
 
     const edges: Edge[] = [];
     const nodes: Node[] = gd.nodes.map((node) => {
-      let edgesIn = 0;
-
       if (node.edges != null) {
-        edgesIn = node.edges.length;
-
-        if (edgesIn > largestEdgesIn) {
-          largestEdgesIn = edgesIn;
-        }
-
         node.edges.forEach((endId) => {
           edges.push({
             id: edgeId.toString(),
@@ -239,24 +232,22 @@ const Graph = () => {
       }
 
       return {
+        ...node,
         id: node.id,
-        edgesIn,
-        edgesOut: 0, // TODO
       };
     });
 
-    // Adjust the scale domain based on the observed data
-    nodeScale.domain([0, largestEdgesIn]);
     setNumEdges(edgeId);
-
     g.setData(nodes, edges);
+
     // TODO: why do I need a timeout here?
     setTimeout(function () {
       g.fitView();
     }, 200);
-  }); // end createEffect
+  });
 
   createEffect(() => {
+    // 🔁 reactive deps
     const size = windowSize();
     const g = cosmoGraph();
 
@@ -266,10 +257,10 @@ const Graph = () => {
     }
 
     g.fitView();
-  }); // end createEffect
+  });
 
   createEffect(() => {
-    // reactive deps
+    // 🔁 reactive deps
     const gd = graphData();
 
     setFilteredGraphData(
@@ -358,7 +349,7 @@ const Graph = () => {
           </Match>
           <Match when={tab() === "algo"}>
             <div>
-              <div class="flex my-1 justify-between">
+              <div class="flex my-1 gap-x-1">
                 <button
                   class={buttonClass}
                   onClick={async () => {
@@ -383,6 +374,55 @@ const Graph = () => {
                   }}
                 >
                   Detect cycles
+                </button>
+                <button
+                  class={buttonClass}
+                  title="Color the graph using the PageRank algorithm. PageRank is a sophisticated measure of the importance of each node in the graph based on how depended upon the nodes are. Runtime ~ O(n^3)."
+                  onClick={async () => {
+                    const gd = graphData();
+                    const cg = cosmoGraph();
+
+                    if (gd.nodes.length >= 5000) {
+                      setMessage(
+                        `PageRank only works on graphs with fewer than 5000 nodes. It uses matrix multiplication under-the-hood which has O(n^3) time and n^2 space for a large matrix.`
+                      );
+                      return;
+                    }
+
+                    const start = Date.now();
+                    const gdWithPageRank = pageRank(gd);
+                    const end = Date.now();
+
+                    const domain = [Infinity, -Infinity];
+                    const newGraphData = {
+                      nodes: gdWithPageRank.map((node) => {
+                        if (node.pageRank < domain[0]) {
+                          domain[0] = node.pageRank;
+                        }
+
+                        if (node.pageRank > domain[1]) {
+                          domain[1] = node.pageRank;
+                        }
+
+                        return {
+                          id: node.id,
+                          edges: node.edges,
+                          colorScaleValue: node.pageRank,
+                        };
+                      }),
+                    };
+
+                    nodeScale.domain(domain);
+
+                    // This needs to happen after the domain adjustment above
+                    setGraphData(newGraphData);
+
+                    setMessage(
+                      `PageRank calculated in ${(end - start).toFixed(0)}ms.`
+                    );
+                  }}
+                >
+                  PageRank
                 </button>
               </div>
               {/* info box */}
@@ -436,29 +476,17 @@ const Graph = () => {
                   click item(s) to select
                 </div>
               </div>
-              <ul class="border border-slate-600 divide-y divide-slate-600 rounded text-xs">
-                <For each={filteredGraphData().slice(0, MAX_LIST_LENGTH)}>
-                  {(node) => (
-                    <li
-                      class="py-1 px-2 cursor-pointer hover:underline"
-                      onClick={() => {
-                        const cg = cosmoGraph();
-                        if (cg === undefined) return;
+              <List
+                maxLength={MAX_LIST_LENGTH}
+                data={filteredGraphData()}
+                onClick={(node) => {
+                  const cg = cosmoGraph();
+                  if (cg === undefined) return;
 
-                        setTab("node");
-                        selectNode(node.id, true);
-                      }}
-                    >
-                      <a href="#">{node.id}</a>
-                    </li>
-                  )}
-                </For>
-              </ul>
-              <Show when={filteredGraphData().length > MAX_LIST_LENGTH}>
-                <div class="mt-2 text-xs text-zinc-500 text-right">
-                  {filteredGraphData().length - MAX_LIST_LENGTH} results hidden
-                </div>
-              </Show>
+                  setTab("node");
+                  selectNode(node.id, true);
+                }}
+              ></List>
             </div>
           </Match>
         </Switch>

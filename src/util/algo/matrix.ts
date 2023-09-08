@@ -73,8 +73,8 @@ export function multiply(a: Matrix, b: Matrix): Matrix {
       // Calculate the dot product of the row from `a` and the column from `b`.
       let n = 0;
       for (let s = 0; s < size; s++) {
-        const first = a.matrix[cellIndex(row, s, a.size[1])];
-        const second = b.matrix[cellIndex(s, col, b.size[1])];
+        const first = a.matrix[cellIndex(row, s, size)];
+        const second = b.matrix[cellIndex(s, col, cols)];
         n += first * second;
       }
       result[index] = n;
