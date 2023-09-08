@@ -1,4 +1,4 @@
-import type { Id, GraphData, Module } from "../types";
+import type { GraphData, Module } from "../types";
 
 export function tarjan(input: GraphData) {
   const UNVISITED = -1;
@@ -61,7 +61,7 @@ export function tarjan(input: GraphData) {
     cyclesIndex[low[i]].push(i);
   }
 
-  const cycles: Id[][] = [];
+  const cycles: String[][] = [];
   for (const [, indexes] of Object.entries(cyclesIndex)) {
     // With tarjan's, cycles are only SCCs with more than 1 node
     if (indexes.length > 1) {
@@ -75,11 +75,11 @@ export function tarjan(input: GraphData) {
 
 export function adjacencyList(
   input: GraphData
-): [{ [i: number]: number[] }, { [n: number]: Id }] {
+): [{ [i: number]: number[] }, { [n: number]: string }] {
   const list: { [i: number]: number[] } = {};
 
-  const idToIndex: { [id: Id]: number } = {};
-  const indexToId: { [n: number]: Id } = {};
+  const idToIndex: { [id: string]: number } = {};
+  const indexToId: { [n: number]: string } = {};
 
   input.nodes.forEach((node, i) => {
     idToIndex[node.id] = i;
