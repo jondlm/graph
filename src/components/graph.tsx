@@ -138,7 +138,7 @@ const Graph = () => {
     cg.selectNodeById(id);
 
     if (zoom) {
-      cg.zoomToNodeById(id, 700, 8);
+      cg.zoomToNodeById(id, 700, cg.getZoomLevel());
     }
   };
 
