@@ -20,6 +20,7 @@ import { pageRank } from "../util/algo/page-rank";
 import List from "./list.js";
 
 import type { Module, GraphData } from "../util/types";
+import { assertUnreachable } from "../util/types";
 
 // Little hack to "fix" hmr with tailwind styles. This doesn work with
 // sub-modules :(
@@ -30,6 +31,8 @@ if (module.hot) {
     document.location.reload();
   });
 }
+
+type Format = "json" | "dot";
 
 type Node = {
   id: string;
@@ -73,7 +76,8 @@ const buttonClass =
 // happy so I'm putting it in module scope here.
 const nodeScale = scaleSequential(interpolateCool);
 
-const rawSampleData = `{
+const rawStartingSampleData: { [k in Format]: string } = {
+  json: `{
   "nodes": [
     { "id": "1", "edges": ["2"]      },
     { "id": "2", "edges": ["3"]      },
@@ -81,13 +85,27 @@ const rawSampleData = `{
     { "id": "4", "edges": ["5"]      },
     { "id": "5"                      }
   ]
-}`;
-const sampleData = JSON.parse(rawSampleData);
+}`,
+  dot: `digraph my_graph {
+  joe   -> sally;
+  joe   -> frank;
+  frank -> susan;
+  sally -> frank;
+  joe   -> susan;
+}`,
+};
+
+const startingSampleData = JSON.parse(rawStartingSampleData.json);
 
 const Graph = () => {
+  const [rawSampleData, setRawSampleData] = createSignal<string>(
+    rawStartingSampleData.json
+  );
+
   const [filter, setFilter] = createSignal<string>("");
   const [cosmoGraph, setCosmoGraph] = createSignal<CosmoGraph<Node, Edge>>();
-  const [graphData, setGraphData] = createSignal<GraphData>(sampleData);
+  const [graphData, setGraphData] = createSignal<GraphData>(startingSampleData);
+  const [inputFormat, setInputFormat] = createSignal<Format>("json");
   const [filteredGraphData, setFilteredGraphData] = createSignal<Module[]>([]);
   const [numEdges, setNumEdges] = createSignal<number>(1); // hard coded start value :|
   const [windowSize, setWindowSize] = createSignal<{
@@ -143,13 +161,24 @@ const Graph = () => {
   };
 
   const processInput = (input: string) => {
+    const inpf = inputFormat();
     let d: any;
 
-    try {
-      d = JSON.parse(input);
-    } catch (e) {
-      d = parseDotGraph(input);
+    switch (inpf) {
+      case "json": {
+        d = JSON.parse(input);
+        break;
+      }
+      case "dot": {
+        d = parseDotGraph(input);
+        break;
+      }
+      default: {
+        // If this errors then you're missing a switch case above ↑
+        assertUnreachable(inpf);
+      }
     }
+
     setGraphData(d);
   };
 
@@ -308,6 +337,27 @@ const Graph = () => {
         <Switch>
           <Match when={tab() === "load"}>
             <div class="flex mb-2">
+              <label class="mr-2" for="input-format">
+                Input format:
+              </label>
+              <select
+                class="grow bg-slate-700 px-1"
+                id="input-format"
+                name="input-format"
+                onChange={(evt) => {
+                  // @ts-expect-error -- not sure why `value` is missing
+                  const format: Format = evt.target.value;
+
+                  setInputFormat(format);
+                  setRawSampleData(rawStartingSampleData[format]);
+                }}
+              >
+                {/* Ensure these stay synced with the `Format` type */}
+                <option value="json">json</option>
+                <option value="dot">dot</option>
+              </select>
+            </div>
+            <div class="flex mb-2">
               <button
                 class={buttonClass}
                 onClick={async () => {
@@ -345,7 +395,9 @@ const Graph = () => {
               </div>
             </div>
             <p>Sample data:</p>
-            <pre class="bg-slate-700 rounded text-sm p-2">{rawSampleData}</pre>
+            <pre class="bg-slate-700 rounded text-sm p-2">
+              {rawSampleData()}
+            </pre>
           </Match>
           <Match when={tab() === "algo"}>
             <div>

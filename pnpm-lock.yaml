@@ -32,6 +32,9 @@ dependencies:
   tailwindcss:
     specifier: ^3.2.2
     version: 3.2.2(postcss@8.4.24)
+  ts-graphviz:
+    specifier: ^1.8.1
+    version: 1.8.1
 
 devDependencies:
   '@babel/core':
@@ -2859,6 +2862,11 @@ packages:
     engines: {node: '>=8.0'}
     dependencies:
       is-number: 7.0.0
+
+  /ts-graphviz@1.8.1:
+    resolution: {integrity: sha512-54/fe5iu0Jb6X0pmDmzsA2UHLfyHjUEUwfHtZcEOR0fZ6Myf+dFoO6eNsyL8CBDMJ9u7WWEewduVaiaXlvjSVw==}
+    engines: {node: '>=14.16'}
+    dev: false
 
   /tslib@2.5.3:
     resolution: {integrity: sha512-mSxlJJwl3BMEQCUNnxXBU9jP4JBktcEGhURcPR6VQVlnP0FdDEsIaz0C35dXNGLyRfrATNofF0F5p2KPxQgB+w==}

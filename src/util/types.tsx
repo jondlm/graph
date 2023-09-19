@@ -8,3 +8,7 @@ export type Module = {
 export type GraphData = {
   nodes: Module[];
 };
+
+export function assertUnreachable(x: never): never {
+  throw new Error("This should be impossible courtesy of TypeScript.");
+}
