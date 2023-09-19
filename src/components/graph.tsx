@@ -341,6 +341,7 @@ const Graph = () => {
                 Input format:
               </label>
               <select
+                value={inputFormat()}
                 class="grow bg-slate-700 px-1"
                 id="input-format"
                 name="input-format"
