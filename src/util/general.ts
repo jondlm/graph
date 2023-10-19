@@ -9,3 +9,7 @@ export function debounce(func: any, timeout = 300) {
     }, timeout);
   };
 }
+
+export function snakeCase(s: string) {
+  return s.toLowerCase().replaceAll(" ", "_");
+}

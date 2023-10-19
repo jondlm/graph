@@ -1,5 +1,5 @@
-import type { GraphData, Module } from "../types";
-import { multiply, Matrix } from "./matrix";
+import type { GraphData, Module } from "/src/util/types";
+import { multiply, Matrix } from "/src/util/algo/matrix";
 
 type ModuleWithPageRank = {
   pageRank: number;

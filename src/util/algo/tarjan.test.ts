@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
-import { adjacencyList, tarjan } from "./tarjan";
+import { adjacencyList, tarjan } from "/src/util/algo/tarjan";
 
 describe("tarjan", () => {
   test("finds a small cycle", () => {

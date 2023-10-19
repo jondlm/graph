@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
-import { add, multiply } from "./matrix";
-import type { Matrix } from "./matrix";
+import { add, multiply } from "/src/util/algo/matrix";
+import type { Matrix } from "/src/util/algo/matrix";
 
 describe("matrix", () => {
   describe("add", () => {

@@ -1,4 +1,4 @@
-import type { GraphData, Module } from "../types";
+import type { GraphData, Module } from "/src/util/types";
 
 export function tarjan(input: GraphData) {
   const UNVISITED = -1;

@@ -8,7 +8,7 @@
 import { parse } from "ts-graphviz/lib/ast/index.js"; // parcel
 // import { parse, EdgeASTNode } from "ts-graphviz/ast"; // node (correct)
 
-import type { Module, GraphData } from "../types";
+import type { Module, GraphData } from "/src/util/types";
 
 // really poor man's digraph parser written mostly by chat gpt
 export function parseDotGraph(input: string): GraphData {

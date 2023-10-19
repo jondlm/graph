@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
-import { pageRank } from "./page-rank";
+import { pageRank } from "/src/util/algo/page-rank";
 
 describe("pageRank", () => {
   test("cornell example", () => {

@@ -17,7 +17,7 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "paths": {
-      "sail/*": ["./node_modules/@stripe-internal/sail/*"]
+      "/*": ["./*"]
     }
   },
   "include": ["src"],

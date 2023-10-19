@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
-import { parseDotGraph } from "./dot";
+import { parseDotGraph } from "/src/util/parsers/dot";
 
 describe("dot", () => {
   describe("parseDotGraph", () => {
