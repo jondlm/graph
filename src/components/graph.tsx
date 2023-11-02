@@ -126,10 +126,10 @@ const Graph = () => {
   const [selectedNodeId, setSelectedNodeId] = createSignal<string>();
   const [tab, setTab] = createSignal<
     "load" | "algo" | "display" | "node" | "search"
-  >("display");
+  >("load");
 
   // Settings
-  const [nodeSize, setNodeSize] = createSignal<number>(3);
+  const [nodeSize, setNodeSize] = createSignal<number>(0.5);
   const [linkWidth, setLinkWidth] = createSignal<number>(1);
   const [linkArrows, setLinkArrows] = createSignal<boolean>(true);
 
@@ -142,7 +142,12 @@ const Graph = () => {
     const x = dragX();
     if (x == null) return;
     const deltaX = e.pageX - x;
-    setSidebarWidth(origSidebarWidth() + deltaX);
+    const newWidth = origSidebarWidth() + deltaX;
+
+    // Very rudimentary clamping to prevent folks from resizing too far
+    if (newWidth > 200 && newWidth < 1000) {
+      setSidebarWidth(origSidebarWidth() + deltaX);
+    }
   }
   function handleMouseUp() {
     window.removeEventListener("mousemove", handleMouseMove);
@@ -317,6 +322,7 @@ const Graph = () => {
       return;
     }
 
+    // TODO: the zooming is weird here :-(
     g.fitView();
   });
 
@@ -352,7 +358,7 @@ const Graph = () => {
       <div style={{ width: `${sidebarWidth()}px` }} class="flex shrink-0">
         <div class="grow overflow-auto bg-slate-800 text-zinc-200 px-2">
           {/* top bar */}
-          <ul class="p-2 flex mt-1 mb-2 items-baseline justify-evenly text-sm border-b border-slate-600">
+          <ul class="py-2 flex mt-1 mb-2 items-baseline justify-evenly text-sm border-b border-slate-600 gap-2">
             <li
               class="cursor-pointer"
               onClick={() => setTab("load")}
